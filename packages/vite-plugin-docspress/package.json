@@ -1,11 +1,13 @@
 {
   "name": "vite-plugin-docspress",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
   "files": [
     "dist"
   ],
   "type": "module",
+  "bin": {
+    "docspress": "./dist/cli.js"
+  },
   "exports": {
     ".": {
       "types": "./src/index.ts",
@@ -17,12 +19,24 @@
       "types": "./src/client.ts",
       "import": "./dist/client.js"
     },
+    "./entry-client": {
+      "types": "./src/entry-client.tsx",
+      "import": "./dist/entry-client.js"
+    },
+    "./entry-server": {
+      "types": "./src/entry-server.tsx",
+      "import": "./dist/entry-server.js"
+    },
     "./react": {
       "types": "./src/react.tsx",
       "import": "./dist/react.js"
     },
+    "./server": {
+      "types": "./src/server.ts",
+      "import": "./dist/server.js"
+    },
     "./virtual": {
-      "types": "./src/virtual.d.ts",
+      "types": "./src/virtual-modules.d.ts",
       "import": "./dist/virtual.js"
     }
   },
@@ -39,15 +53,20 @@
   "devDependencies": {
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
     "rolldown": "^1.0.0-rc.18",
     "typescript": "5.9.2",
     "vite": "^8.0.10"
   },
   "peerDependencies": {
-    "react": ">=18.0.0 || >=19.0.0"
+    "react": ">=18.0.0 || >=19.0.0",
+    "react-dom": ">=18.0.0 || >=19.0.0"
   },
   "peerDependenciesMeta": {
     "react": {
+      "optional": true
+    },
+    "react-dom": {
       "optional": true
     }
   }

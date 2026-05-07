@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import mdx from "@mdx-js/rollup";
 import fg from "fast-glob";
 import { marked } from "marked";
@@ -19,23 +20,30 @@ const ROUTES_MODULE_ID = "virtual:docspress/routes";
 const HTML_ROUTES_MODULE_ID = "virtual:docspress/html-routes";
 const REACT_ROUTES_MODULE_ID = "virtual:docspress/react-routes";
 const SIDEBAR_MODULE_ID = "virtual:docspress/sidebar";
+const CONFIG_MODULE_ID = "virtual:docspress/config";
 const RESOLVED_ROUTES_MODULE_ID = `\0${ROUTES_MODULE_ID}`;
 const RESOLVED_HTML_ROUTES_MODULE_ID = `\0${HTML_ROUTES_MODULE_ID}`;
 const RESOLVED_REACT_ROUTES_MODULE_ID = `\0${REACT_ROUTES_MODULE_ID}`;
 const RESOLVED_SIDEBAR_MODULE_ID = `\0${SIDEBAR_MODULE_ID}`;
+const RESOLVED_CONFIG_MODULE_ID = `\0${CONFIG_MODULE_ID}`;
+const ENTRY_CLIENT_FILE = fileURLToPath(new URL("./entry-client.js", import.meta.url));
 
 export interface DocspressOptions {
   docsDir?: string;
   basePath?: string;
+  framework?: "react" | "vanilla";
   indexToken?: string;
   routeToken?: string;
+  title?: string;
 }
 
 interface ResolvedDocspressOptions {
   docsDir: string;
   basePath: string;
+  framework: "react" | "vanilla";
   indexToken: string;
   routeToken: string;
+  title: string;
 }
 
 interface FileRoute extends DocspressRoute {
@@ -54,13 +62,26 @@ function docspressCore(options: DocspressOptions): Plugin {
   return {
     name: "vite-plugin-docspress",
 
+    config() {
+      return {
+        optimizeDeps: {
+          exclude: ["vite-plugin-docspress"],
+        },
+        ssr: {
+          noExternal: ["vite-plugin-docspress"],
+        },
+      };
+    },
+
     configResolved(resolvedConfig) {
       config = resolvedConfig;
       resolvedOptions = {
-        docsDir: normalizeSlashes(options.docsDir ?? "src/docs"),
-        basePath: normalizeBasePath(options.basePath ?? "/docs"),
+        docsDir: normalizeSlashes(options.docsDir ?? "src/pages"),
+        basePath: normalizeBasePath(options.basePath ?? "/"),
+        framework: options.framework ?? "react",
         indexToken: options.indexToken ?? "index",
         routeToken: options.routeToken ?? "route",
+        title: options.title ?? "Docspress",
       };
     },
 
@@ -86,6 +107,10 @@ function docspressCore(options: DocspressOptions): Plugin {
         return RESOLVED_SIDEBAR_MODULE_ID;
       }
 
+      if (id === CONFIG_MODULE_ID) {
+        return RESOLVED_CONFIG_MODULE_ID;
+      }
+
       return undefined;
     },
 
@@ -109,7 +134,38 @@ function docspressCore(options: DocspressOptions): Plugin {
         return createSidebarModule(config.root, resolvedOptions);
       }
 
+      if (id === RESOLVED_CONFIG_MODULE_ID) {
+        return createConfigModule(resolvedOptions);
+      }
+
       return undefined;
+    },
+
+    transformIndexHtml: {
+      order: "pre",
+      handler(html) {
+        if (resolvedOptions.framework !== "react") {
+          return html;
+        }
+
+        if (html.includes(ENTRY_CLIENT_FILE)) {
+          return html;
+        }
+
+        return {
+          html,
+          tags: [
+            {
+              tag: "script",
+              attrs: {
+                type: "module",
+                src: `/@fs/${normalizeSlashes(ENTRY_CLIENT_FILE)}`,
+              },
+              injectTo: "body",
+            },
+          ],
+        };
+      },
     },
 
     handleHotUpdate(ctx) {
@@ -125,6 +181,17 @@ function docspressCore(options: DocspressOptions): Plugin {
       return [];
     },
   };
+}
+
+function createConfigModule(options: ResolvedDocspressOptions): string {
+  return `export const config = ${JSON.stringify(
+    {
+      basePath: options.basePath,
+      title: options.title,
+    },
+    null,
+    2,
+  )};`;
 }
 
 async function scanRoutes(root: string, options: ResolvedDocspressOptions): Promise<FileRoute[]> {
@@ -295,6 +362,10 @@ function getRequestPath(url: string | undefined): string | undefined {
 }
 
 function isDocsRequest(requestPath: string, basePath: string): boolean {
+  if (basePath === "/") {
+    return requestPath.startsWith("/");
+  }
+
   return requestPath === basePath || requestPath.startsWith(`${basePath}/`);
 }
 
@@ -309,6 +380,7 @@ function invalidateVirtualModules(server: ViteDevServer): void {
     HTML_ROUTES_MODULE_ID,
     REACT_ROUTES_MODULE_ID,
     SIDEBAR_MODULE_ID,
+    CONFIG_MODULE_ID,
   ]) {
     const moduleNode = server.moduleGraph.getModuleById(`\0${id}`);
     if (moduleNode) {

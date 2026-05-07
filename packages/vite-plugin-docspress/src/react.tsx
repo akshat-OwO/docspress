@@ -19,10 +19,20 @@ export interface ReactDocspressRoute extends DocspressRoute {
   load: () => Promise<{ default: ComponentType }>;
 }
 
+export interface LoadedDocspressPage {
+  pathname: string;
+  route?: ReactDocspressRoute;
+  params: Record<string, string>;
+  Page?: ComponentType;
+}
+
 export interface DocspressRouterProps {
   routes: readonly ReactDocspressRoute[];
   sidebar?: SidebarConfig;
   title?: string;
+  initialPathname?: string;
+  initialPage?: ComponentType;
+  loading?: ReactElement;
   notFound?: ReactElement;
 }
 
@@ -30,12 +40,22 @@ export function DocspressRouter({
   routes,
   sidebar: sidebarConfig,
   title = "Docspress",
+  initialPathname,
+  initialPage,
+  loading = <p>Loading documentation page...</p>,
   notFound = <p>No documentation page matches this URL.</p>,
 }: DocspressRouterProps): ReactElement {
-  const [pathname, setPathname] = useState(() => window.location.pathname);
-  const [Page, setPage] = useState<ComponentType | undefined>();
+  const [pathname, setPathname] = useState(() => initialPathname ?? getCurrentPathname());
   const sidebar = useMemo(() => resolveSidebar(routes, sidebarConfig), [routes, sidebarConfig]);
   const match = matchRoute(pathname, routes);
+  const [pageState, setPageState] = useState<{
+    routeId: string | undefined;
+    Page: ComponentType | undefined;
+  }>(() => ({
+    routeId: match?.route.id,
+    Page: initialPage,
+  }));
+  const Page = pageState.routeId === match?.route.id ? pageState.Page : undefined;
 
   useEffect(() => {
     const onPopState = () => setPathname(window.location.pathname);
@@ -47,13 +67,19 @@ export function DocspressRouter({
     let disposed = false;
 
     if (!match) {
-      setPage(undefined);
+      setPageState({ routeId: undefined, Page: undefined });
       return;
     }
 
+    if (pageState.routeId === match.route.id && pageState.Page) {
+      return;
+    }
+
+    setPageState({ routeId: match.route.id, Page: undefined });
+
     match.route.load().then((module) => {
       if (!disposed) {
-        setPage(() => module.default);
+        setPageState({ routeId: match.route.id, Page: module.default });
       }
     });
 
@@ -82,10 +108,30 @@ export function DocspressRouter({
             <div data-docspress-sidebar-footer>{renderSlot(sidebar.footer)}</div>
           ) : null}
         </aside>
-        <main data-docspress-content>{Page ? <Page /> : notFound}</main>
+        <main data-docspress-content>{Page ? <Page /> : match ? loading : notFound}</main>
       </div>
     </>
   );
+}
+
+export async function loadDocspressPage(
+  routes: readonly ReactDocspressRoute[],
+  pathname: string,
+): Promise<LoadedDocspressPage> {
+  const match = matchRoute(pathname, routes);
+
+  if (!match) {
+    return { pathname, params: {} };
+  }
+
+  const module = await match.route.load();
+
+  return {
+    pathname,
+    route: match.route,
+    params: match.params,
+    Page: module.default,
+  };
 }
 
 function SidebarItems({
@@ -168,4 +214,8 @@ function renderSlot(slot: SidebarComponent | undefined): ReactNode {
   }
 
   return slot;
+}
+
+function getCurrentPathname(): string {
+  return typeof window === "undefined" ? "/" : window.location.pathname;
 }

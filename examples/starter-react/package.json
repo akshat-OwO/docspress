@@ -4,11 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
+    "dev": "docspress dev",
+    "build": "tsc && docspress build",
     "lint": "oxlint .",
     "check-types": "tsc --noEmit",
-    "preview": "vite preview"
+    "preview": "docspress start",
+    "start": "docspress start"
   },
   "dependencies": {
     "react": "^19.2.5",

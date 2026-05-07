@@ -14,7 +14,7 @@ function SidebarFooter() {
   return createElement(
     "small",
     { style: { color: "#7a6f61" } },
-    "Powered by the Docspress Vite plugin.",
+    "Powered by the Docspress framework.",
   );
 }
 
@@ -26,6 +26,7 @@ export default createSidebar({
       heading: "Start here",
       items: [
         { label: "Overview", file: "/index.mdx" },
+        { label: "Introduction", file: "/introduction.mdx" },
         { label: "Getting started", file: "/getting-started.mdx" },
       ],
     },
