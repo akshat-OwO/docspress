@@ -6,13 +6,13 @@ import {
   type ReactElement,
   type ReactNode,
 } from "react";
-import { matchRoute, type DocspressRoute } from "./routing";
+import { matchRoute, type DocspressRoute } from "../core/routing";
 import {
   resolveSidebar,
   type ResolvedSidebarItem,
   type SidebarComponent,
   type SidebarConfig,
-} from "./sidebar";
+} from "../sidebar";
 import { docspressStyles } from "./styles";
 
 export interface ReactDocspressRoute extends DocspressRoute {

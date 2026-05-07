@@ -1,5 +1,5 @@
 import type { ComponentType, ReactNode } from "react";
-import type { DocspressRoute } from "./routing";
+import type { DocspressRoute } from "../core/routing";
 
 export type SidebarComponent = ComponentType | ReactNode;
 

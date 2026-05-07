@@ -2,12 +2,15 @@ import fs from "node:fs/promises";
 import {
   createServer as createHttpServer,
   type IncomingMessage,
+  type Server as HttpServer,
   type ServerResponse,
 } from "node:http";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { createServer as createViteServer, type ViteDevServer } from "vite";
-import { normalizeBasePath } from "./routing";
+import { acceptsHtml, isDocsRequest } from "../core/request";
+import { normalizeBasePath } from "../core/routing";
+import { clientDistContentType, resolveClientDistFile } from "./serve-static";
 
 export interface DocspressRenderResult {
   appHtml: string;
@@ -20,7 +23,13 @@ export interface StartDocspressSsrServerOptions {
   root?: string;
   basePath?: string;
   isProduction?: boolean;
+  /** Listen port (from `PORT` when unset under default options). */
   port?: number;
+  /**
+   * Bind host. Defaults to `127.0.0.1` so the server is not exposed on every interface by default.
+   * Use `"0.0.0.0"` when you need LAN/Docker ingress.
+   */
+  host?: string;
   clientDist?: string;
   serverEntry?: string;
   serverEntryDev?: string;
@@ -31,10 +40,11 @@ export async function startDocspressSsrServer({
   basePath = "/",
   isProduction = process.env.NODE_ENV === "production",
   port = Number(process.env.PORT ?? 5173),
+  host = "127.0.0.1",
   clientDist = path.resolve(root, "dist/client"),
   serverEntry = path.resolve(root, "dist/server/entry-server.js"),
   serverEntryDev = "vite-plugin-docspress/entry-server",
-}: StartDocspressSsrServerOptions = {}): Promise<void> {
+}: StartDocspressSsrServerOptions = {}): Promise<HttpServer> {
   const docsBasePath = normalizeBasePath(basePath);
   const vite = isProduction
     ? undefined
@@ -47,7 +57,7 @@ export async function startDocspressSsrServer({
     ? await fs.readFile(path.resolve(clientDist, "index.html"), "utf8")
     : undefined;
 
-  createHttpServer((req, res) => {
+  const httpServer = createHttpServer((req, res) => {
     void handleRequest({
       clientDist,
       docsBasePath,
@@ -59,9 +69,21 @@ export async function startDocspressSsrServer({
       serverEntryDev,
       vite,
     });
-  }).listen(port, () => {
-    console.log(`listening at http://localhost:${port}`);
   });
+
+  await new Promise<void>((resolve, reject) => {
+    httpServer.once("listening", resolve);
+    httpServer.once("error", reject);
+    httpServer.listen(port, host);
+  });
+
+  const addr = httpServer.address();
+  const listeningPort =
+    typeof addr === "object" && addr !== null ? addr.port : port;
+  const displayHost = host === "0.0.0.0" ? "localhost" : host;
+  console.log(`listening at http://${displayHost}:${listeningPort}`);
+
+  return httpServer;
 }
 
 interface HandleRequestOptions {
@@ -245,21 +267,21 @@ async function serveStaticAsset(
   res: ServerResponse,
   clientDist: string,
 ): Promise<boolean> {
-  if (!path.extname(pathname)) {
+  const resolved = resolveClientDistFile(clientDist, pathname);
+
+  if (resolved.kind === "not_static") {
     return false;
   }
 
-  const file = path.resolve(clientDist, `.${decodeURIComponent(pathname)}`);
-
-  if (!isInsideDirectory(file, clientDist)) {
+  if (resolved.kind === "outside") {
     sendNotFound(res);
     return true;
   }
 
   try {
-    const content = await fs.readFile(file);
+    const content = await fs.readFile(resolved.file);
     res.statusCode = 200;
-    res.setHeader("Content-Type", contentType(file));
+    res.setHeader("Content-Type", clientDistContentType(resolved.file));
     res.end(content);
     return true;
   } catch {
@@ -268,42 +290,7 @@ async function serveStaticAsset(
   }
 }
 
-function isInsideDirectory(file: string, directory: string): boolean {
-  const relative = path.relative(directory, file);
-  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
-}
-
-function isDocsRequest(pathname: string, basePath: string): boolean {
-  if (basePath === "/") {
-    return pathname.startsWith("/");
-  }
-
-  return pathname === basePath || pathname.startsWith(`${basePath}/`);
-}
-
-function acceptsHtml(req: IncomingMessage): boolean {
-  const accept = req.headers.accept;
-  return typeof accept === "string" && accept.includes("text/html");
-}
-
 function sendNotFound(res: ServerResponse): void {
   res.statusCode = 404;
   res.end("Not Found");
-}
-
-function contentType(file: string): string {
-  switch (path.extname(file)) {
-    case ".css":
-      return "text/css";
-    case ".html":
-      return "text/html";
-    case ".js":
-      return "text/javascript";
-    case ".json":
-      return "application/json";
-    case ".svg":
-      return "image/svg+xml";
-    default:
-      return "application/octet-stream";
-  }
 }

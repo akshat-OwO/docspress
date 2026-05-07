@@ -1,10 +1,10 @@
-import { matchRoute, type DocspressRoute } from "./routing";
+import { matchRoute, type DocspressRoute } from "../core/routing";
 import {
   resolveSidebar,
   type ResolvedSidebarConfig,
   type ResolvedSidebarItem,
   type SidebarConfig,
-} from "./sidebar";
+} from "../sidebar";
 import { docspressStyles } from "./styles";
 
 export interface HtmlDocspressRoute extends DocspressRoute {

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { startDocspressSsrServer } from "./server";
+import { startDocspressSsrServer } from "../server";
 
 const command = process.argv[2] ?? "dev";
 const args = process.argv.slice(3);
