@@ -1,0 +1,20 @@
+{
+  "name": "starter-vanilla",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "lint": "oxlint .",
+    "check-types": "tsc --noEmit",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "vite-plugin-docspress": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "~6.0.2",
+    "vite": "^8.0.10"
+  }
+}
