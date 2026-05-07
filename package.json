@@ -3,13 +3,17 @@
   "private": true,
   "scripts": {
     "build": "turbo run build",
+    "changeset": "changeset",
     "dev": "turbo run dev",
     "lint": "turbo run lint",
     "format": "oxfmt --write .",
     "check-types": "turbo run check-types",
-    "check": "pnpm lint && pnpm check-types"
+    "check": "pnpm lint && pnpm check-types",
+    "version-packages": "changeset version",
+    "release": "changeset publish"
   },
   "devDependencies": {
+    "@changesets/cli": "^2.31.0",
     "oxfmt": "^0.48.0",
     "oxlint": "^1.63.0",
     "turbo": "^2.9.9",
