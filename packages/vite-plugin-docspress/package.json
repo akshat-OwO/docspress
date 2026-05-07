@@ -9,6 +9,8 @@
   "exports": {
     ".": {
       "types": "./src/index.ts",
+      "browser": "./dist/sidebar.js",
+      "node": "./dist/index.js",
       "import": "./dist/index.js"
     },
     "./client": {
@@ -30,6 +32,7 @@
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
+    "@mdx-js/rollup": "^3.1.1",
     "fast-glob": "^3.3.3",
     "marked": "^18.0.3"
   },

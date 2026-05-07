@@ -6,6 +6,13 @@ declare module "virtual:docspress/react-routes" {
   export const routes: ReactDocspressRoute[];
 }
 
+declare module "virtual:docspress/sidebar" {
+  import type { SidebarConfig } from "vite-plugin-docspress";
+
+  export const sidebar: SidebarConfig | undefined;
+  export default sidebar;
+}
+
 declare module "*.mdx" {
   import type { ComponentType } from "react";
 

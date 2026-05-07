@@ -1,16 +1,28 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import mdx from "@mdx-js/rollup";
 import fg from "fast-glob";
 import { marked } from "marked";
-import type { Connect, Plugin, ResolvedConfig, ViteDevServer } from "vite";
+import type { Connect, Plugin, PluginOption, ResolvedConfig, ViteDevServer } from "vite";
 import { joinRoutePath, normalizeBasePath, routeScore, type DocspressRoute } from "./routing";
+
+export { createSidebar } from "./sidebar";
+export type {
+  SidebarComponent,
+  SidebarConfig,
+  SidebarGroup,
+  SidebarItem,
+  SidebarLink,
+} from "./sidebar";
 
 const ROUTES_MODULE_ID = "virtual:docspress/routes";
 const HTML_ROUTES_MODULE_ID = "virtual:docspress/html-routes";
 const REACT_ROUTES_MODULE_ID = "virtual:docspress/react-routes";
+const SIDEBAR_MODULE_ID = "virtual:docspress/sidebar";
 const RESOLVED_ROUTES_MODULE_ID = `\0${ROUTES_MODULE_ID}`;
 const RESOLVED_HTML_ROUTES_MODULE_ID = `\0${HTML_ROUTES_MODULE_ID}`;
 const RESOLVED_REACT_ROUTES_MODULE_ID = `\0${REACT_ROUTES_MODULE_ID}`;
+const RESOLVED_SIDEBAR_MODULE_ID = `\0${SIDEBAR_MODULE_ID}`;
 
 export interface DocspressOptions {
   docsDir?: string;
@@ -31,7 +43,11 @@ interface FileRoute extends DocspressRoute {
   importPath: string;
 }
 
-export function docspress(options: DocspressOptions = {}): Plugin {
+export function docspress(options: DocspressOptions = {}): PluginOption {
+  return [docspressCore(options), mdx()];
+}
+
+function docspressCore(options: DocspressOptions): Plugin {
   let config: ResolvedConfig;
   let resolvedOptions: ResolvedDocspressOptions;
 
@@ -66,6 +82,10 @@ export function docspress(options: DocspressOptions = {}): Plugin {
         return RESOLVED_REACT_ROUTES_MODULE_ID;
       }
 
+      if (id === SIDEBAR_MODULE_ID) {
+        return RESOLVED_SIDEBAR_MODULE_ID;
+      }
+
       return undefined;
     },
 
@@ -85,11 +105,18 @@ export function docspress(options: DocspressOptions = {}): Plugin {
         return createReactRoutesModule(routes);
       }
 
+      if (id === RESOLVED_SIDEBAR_MODULE_ID) {
+        return createSidebarModule(config.root, resolvedOptions);
+      }
+
       return undefined;
     },
 
     handleHotUpdate(ctx) {
-      if (!isDocsFile(ctx.file, config.root, resolvedOptions.docsDir)) {
+      if (
+        !isDocsFile(ctx.file, config.root, resolvedOptions.docsDir) &&
+        !isSidebarFile(ctx.file, config.root, resolvedOptions.docsDir)
+      ) {
         return undefined;
       }
 
@@ -109,7 +136,7 @@ async function scanRoutes(root: string, options: ResolvedDocspressOptions): Prom
   });
 
   return files
-    .map((file) => createRoute(file, docsRoot, root, options))
+    .map((file) => createRoute(file, docsRoot, options))
     .filter((route): route is FileRoute => route !== undefined)
     .sort((a, b) => a.path.localeCompare(b.path));
 }
@@ -117,7 +144,6 @@ async function scanRoutes(root: string, options: ResolvedDocspressOptions): Prom
 function createRoute(
   file: string,
   docsRoot: string,
-  root: string,
   options: ResolvedDocspressOptions,
 ): FileRoute | undefined {
   const relativeFile = normalizeSlashes(path.relative(docsRoot, file));
@@ -156,7 +182,7 @@ function createRoute(
   return {
     id: createRouteId(relativeFile),
     path: routePath,
-    file: normalizeSlashes(path.relative(root, file)),
+    file: `/${relativeFile}`,
     absoluteFile: file,
     importPath: `/@fs/${normalizeSlashes(file)}`,
     params,
@@ -200,6 +226,25 @@ function createReactRoutesModule(routes: FileRoute[]): string {
   return `export const routes = [\n${routeLines.join(",\n")}\n];`;
 }
 
+async function createSidebarModule(
+  root: string,
+  options: ResolvedDocspressOptions,
+): Promise<string> {
+  const sidebarFile = path.resolve(root, options.docsDir, "sidebar.ts");
+
+  try {
+    await fs.access(sidebarFile);
+  } catch {
+    return "const sidebar = undefined;\nexport { sidebar };\nexport default sidebar;";
+  }
+
+  return [
+    `import sidebar from ${JSON.stringify(`/@fs/${normalizeSlashes(sidebarFile)}`)};`,
+    "export { sidebar };",
+    "export default sidebar;",
+  ].join("\n");
+}
+
 async function renderMarkdownFile(file: string): Promise<string> {
   const source = await fs.readFile(file, "utf8");
   return String(await marked.parse(stripMdxOnlySyntax(source)));
@@ -216,6 +261,7 @@ function stripMdxOnlySyntax(source: string): string {
 function addDocsWatcher(server: ViteDevServer, options: ResolvedDocspressOptions): void {
   const docsGlob = path.resolve(server.config.root, options.docsDir, "**/*.mdx");
   server.watcher.add(docsGlob);
+  server.watcher.add(path.resolve(server.config.root, options.docsDir, "sidebar.ts"));
 }
 
 function addDocsFallback(server: ViteDevServer, options: ResolvedDocspressOptions): void {
@@ -258,7 +304,12 @@ function acceptsHtml(req: Connect.IncomingMessage): boolean {
 }
 
 function invalidateVirtualModules(server: ViteDevServer): void {
-  for (const id of [ROUTES_MODULE_ID, HTML_ROUTES_MODULE_ID, REACT_ROUTES_MODULE_ID]) {
+  for (const id of [
+    ROUTES_MODULE_ID,
+    HTML_ROUTES_MODULE_ID,
+    REACT_ROUTES_MODULE_ID,
+    SIDEBAR_MODULE_ID,
+  ]) {
     const moduleNode = server.moduleGraph.getModuleById(`\0${id}`);
     if (moduleNode) {
       server.moduleGraph.invalidateModule(moduleNode);
@@ -270,6 +321,10 @@ function isDocsFile(file: string, root: string, docsDir: string): boolean {
   const docsRoot = path.resolve(root, docsDir);
   const relative = path.relative(docsRoot, file);
   return !relative.startsWith("..") && !path.isAbsolute(relative) && file.endsWith(".mdx");
+}
+
+function isSidebarFile(file: string, root: string, docsDir: string): boolean {
+  return file === path.resolve(root, docsDir, "sidebar.ts");
 }
 
 function createRouteId(relativeFile: string): string {

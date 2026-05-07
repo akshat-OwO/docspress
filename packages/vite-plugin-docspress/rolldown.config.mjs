@@ -5,6 +5,7 @@ export default defineConfig({
     index: "src/index.ts",
     client: "src/client.ts",
     react: "src/react.tsx",
+    sidebar: "src/sidebar.ts",
     virtual: "src/virtual.ts",
   },
   external: (id) => !id.startsWith(".") && !id.startsWith("/") && !id.startsWith("\0"),

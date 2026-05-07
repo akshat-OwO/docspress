@@ -1,4 +1,3 @@
-import "./style.css";
 import { mountDocspress } from "vite-plugin-docspress/client";
 import { routes } from "virtual:docspress/html-routes";
 
