@@ -4,12 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "docspress dev",
-    "build": "tsc && docspress build",
+    "dev": "node ../../packages/vite-plugin-docspress/dist/cli.js dev",
+    "build": "tsc && node ../../packages/vite-plugin-docspress/dist/cli.js build",
     "lint": "oxlint .",
     "check-types": "tsc --noEmit",
-    "preview": "docspress start",
-    "start": "docspress start"
+    "preview": "node ../../packages/vite-plugin-docspress/dist/cli.js start",
+    "start": "node ../../packages/vite-plugin-docspress/dist/cli.js start"
   },
   "dependencies": {
     "react": "^19.2.5",
